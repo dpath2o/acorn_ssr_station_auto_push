@@ -1,0 +1,69 @@
+#!/bin/bash
+# 
+# Script for invoking autmotic data transfers from SeaSonde stations to remote server(s).
+# Is setup for Australian Coastal Ocean Radar Network (ACORN) purposes but can be easily 
+# adapted to other networks as required.
+#
+# Author: Daniel Patrick Lewis Atwater, James Cook University, May 2009
+# 
+
+function usage(){
+	echo "Usage: $0 <RADIAL TYPE> <RADIAL DIRECTORY>"
+        echo "NewRadial is a ``hook'' script that has two static inputs from the script:"
+	echo "/codar/seasonde/apps/radialtools/processing/analyzespectra .  This script is invoked"
+	echo "when it is placed in /codar/seasonde/users/scripts/ and everytime a radial"
+	echo "file is created.  The two inputs that it receives from analyzespectra script are:"
+	echo "        $1 : the full path and filename of the new radial file"
+	echo "        $2 : the type of radial (either ``Meas'' for measured or calibrated radial or"
+	echo "             ``Ideal'' for theoretical or uncalibrated radial measurements)."
+	echo "        $3 : radial stage: ``short'', ``averaged'', ``final''"
+	echo ""
+	echo "In this instance of NewRadial it has been written to cope with the needs of the Australian"
+	echo "Coastal Ocean Radar Network (ACORN) and as such will call the perl script:"
+        echo "seasonde_station_data_transfer_push.pl which depends on some perl modules.  Please see the help"
+        echo " on seasonde_station_data_transfer_push.pl fo more information."
+	exit 1
+}
+
+# invoke  usage
+# call usage() function if no inputs supplied 
+[[ $# -eq 0 ]] && usage
+
+# define the station sitecode
+station_name=$(head -1 /Codar/SeaSonde/Configs/RadialConfigs/Header.txt | awk "{print \$2}")
+
+# source file
+source_file=$1
+
+# radial type
+radial_type="Meas"
+
+# radial stage
+radial_stage="Final"
+
+# remote hosts and their directories
+declare -a remote_hosts=( acorn.jcu.edu.au )
+declare -a remote_directories=( /data/incoming/$station_name )
+
+# transfer script
+data_transfer_script=/codar/seasonde/users/scripts/seasonde_station_data_transfer_push.pl
+
+# do not consider anything but the specified 'radial type' and 'radial stage' (see above definitions) for transfer but do try to clear the queued files
+if [ $2 == $radial_type ] && [ $3 == $radial_stage ]; then
+
+    echo ""
+    echo "CALLING: "$data_transfer_script" on source file : "$source_file
+    $data_transfer_script --sf=$source_file --rh=${remote_hosts[0]} --dd=${remote_directories[0]} --station=$station_name --logit -v
+    echo ""
+    echo "CALLING: "$data_transfer_script" on queued directory"
+    $data_transfer_script --queued --unqueue --rh=${remote_hosts[0]} --dd=${remote_directories[0]} --station=$station_name --logit -v
+    echo ""
+
+else
+
+    echo ""
+    echo $source_file" is NOT a "$radial_stage" and "$radial_type" file ... no transfer attempted"
+    echo ""
+
+fi
+
